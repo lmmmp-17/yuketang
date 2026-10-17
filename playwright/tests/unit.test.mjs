@@ -7,8 +7,10 @@ import { parseArgs, defaults } from '../src/config.mjs';
 import { isAllowedUrl } from '../src/selectors.mjs';
 import { LearningRunner, keyEntries, pickNext } from '../src/learning.mjs';
 import { createLogger } from '../src/logger.mjs';
-import { chromeLaunchHint } from '../src/platform.mjs';
-import { launchOptions } from '../src/browser.mjs';
+import { chromeLaunchHint, findChrome, chromeCandidates, dedicatedChromeArgs } from '../src/platform.mjs';
+import { launchOptions, launchDedicatedChrome, pickCoursePage } from '../src/browser.mjs';
+import { ensureInstalled } from '../src/setup.mjs';
+import { createServer } from 'node:http';
 
 const silent = createLogger('silent');
 const leaf = (kind, title, extra = {}) => ({ type: 'leaf', kind, title, done: false, active: false, ...extra });
@@ -149,4 +151,57 @@ test('等待时长会抖动；指针起点是 (0,0)', () => {
     assert.ok(values.size > 15);
     const pointer = createPointer({ viewportSize: () => ({ width: 1280, height: 800 }), mouse: {} });
     assert.deepEqual([pointer.state.x, pointer.state.y], [0, 0]);
+});
+
+test('找 Chrome：Windows / macOS 看固定位置，Linux 在 PATH 里找，--chrome-path 优先', () => {
+    const win = chromeCandidates('win32', { PROGRAMFILES: 'C:\\Program Files', LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' });
+    assert.equal(win[0], 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
+    const linux = findChrome({ platform: 'linux', env: { PATH: '/nope:/opt/bin' }, exists: (p) => p === '/opt/bin/chromium' });
+    assert.equal(linux, '/opt/bin/chromium');
+    assert.equal(findChrome({ configured: '/missing', exists: () => false }), null);
+});
+
+test('自动启动专用 Chrome：参数和手动命令同一组、静音、独立进程', async () => {
+    const args = dedicatedChromeArgs({ port: 9222, profileDir: '/home/u/yuketang-chrome', url: 'https://changjiang.yuketang.cn/' });
+    assert.ok(args.includes('--mute-audio'));
+    assert.equal(args.some((a) => /automation|headless|webdriver/i.test(a)), false);
+
+    const server = createServer((req, res) => { res.writeHead(200); res.end('{}'); });
+    await new Promise((done) => server.listen(0, '127.0.0.1', done));
+    let call = null;
+    try {
+        await launchDedicatedChrome(
+            { ...defaults, cdpPort: server.address().port, chromePath: process.execPath, chromeProfile: '/tmp/p' },
+            silent,
+            { spawnProcess(exe, a, options) { call = { a, options }; return { pid: 1, on() {}, unref() {} }; } },
+        );
+    } finally {
+        server.close();
+    }
+    assert.equal(call.options.detached, true);
+    assert.equal(call.a.at(-1), 'https://changjiang.yuketang.cn/', '默认打开雨课堂首页');
+});
+
+test('没有学习空间页面时一直等，用户点开视频后自动接管；Ctrl+C 能退出', async () => {
+    const pages = [{ url: () => 'https://changjiang.yuketang.cn/v2/web/index' }];
+    const target = {
+        url: () => 'https://changjiang.yuketang.cn/ai-workspace/lms-graph/1/video/2?node_id=3',
+        async waitForLoadState() {},
+        async bringToFront() {},
+    };
+    setTimeout(() => pages.push(target), 400);
+    assert.equal(await pickCoursePage({ pages: () => pages }, { ...defaults }, silent, { stopped: false }), target);
+
+    const abort = { stopped: false };
+    setTimeout(() => { abort.stopped = true; }, 300);
+    await assert.rejects(pickCoursePage({ pages: () => [] }, { ...defaults }, silent, abort), /已退出/);
+});
+
+test('第一次运行自动安装依赖；装过就不再装；失败时给出镜像提示', () => {
+    const calls = [];
+    const ok = (cmd, options) => { calls.push({ cmd, options }); return { status: 0 }; };
+    assert.equal(ensureInstalled(silent, { dir: '/nonexistent-dir', run: ok }), true);
+    assert.equal(calls[0].options.shell, true);
+    assert.equal(ensureInstalled(silent, { run: ok }), false);
+    assert.throws(() => ensureInstalled(silent, { dir: '/nonexistent-dir', run: () => ({ status: 1 }) }), /npmmirror/);
 });

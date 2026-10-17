@@ -17,6 +17,9 @@ import { createPointer } from '../src/pointer.mjs';
 import { LearningRunner } from '../src/learning.mjs';
 import { createLogger } from '../src/logger.mjs';
 import { defaults } from '../src/config.mjs';
+import { launchDedicatedChrome } from '../src/browser.mjs';
+import { findChrome } from '../src/platform.mjs';
+import { createServer } from 'node:net';
 
 const fast = {
     ...defaults,
@@ -134,4 +137,49 @@ test('当前项已经完成时不重放，直接去下一个没完成的', async
     const { probe } = out;
     assert.equal(probe.log.some((e) => e.endsWith(':V1') && e.startsWith('play:')), false, `不应重放 V1: ${probe.log.join(' | ')}`);
     assert.deepEqual(probe.log.filter((e) => e.startsWith('open:')), ['open:V1', 'open:V2']);
+});
+
+async function freePort() {
+    const server = createServer();
+    await new Promise((done) => server.listen(0, '127.0.0.1', done));
+    const { port } = server.address();
+    await new Promise((done) => server.close(done));
+    return port;
+}
+
+test('一键启动：连不上时自己开专用 Chrome，打开起始页，webdriver 为 false', async (t) => {
+    if (!findChrome()) return t.skip('本机没有 Chrome');
+    let chromium;
+    try {
+        ({ chromium } = await import('playwright-core'));
+    } catch (e) {
+        return t.skip('未安装 playwright-core');
+    }
+    const server = await startFixtureServer();
+    const profileDir = await mkdtemp(join(tmpdir(), 'ykt-launch-'));
+    const port = await freePort();
+    let pid = null;
+    let browser = null;
+    try {
+        /* 真实运行时不带 --headless，这里只是为了测试时不弹窗 */
+        ({ pid } = await launchDedicatedChrome(
+            { ...defaults, cdpPort: port, chromeProfile: profileDir },
+            createLogger('silent'),
+            { url: server.url, extraArgs: ['--headless=new'] },
+        ));
+        browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+        let page = null;
+        for (let i = 0; i < 40 && !page; i += 1) {
+            page = browser.contexts()[0].pages().find((p) => p.url().includes('/ai-workspace/lms-graph/'));
+            if (!page) await new Promise((done) => setTimeout(done, 250));
+        }
+        assert.ok(page, '专用 Chrome 应当打开了起始页');
+        assert.equal(await page.evaluate(() => navigator.webdriver), false);
+    } finally {
+        if (browser) await browser.close().catch(() => {});
+        if (pid) { try { process.kill(pid); } catch (e) { /* 已经退出 */ } }
+        await server.close();
+        await new Promise((done) => setTimeout(done, 500));
+        await rm(profileDir, { recursive: true, force: true });
+    }
 });

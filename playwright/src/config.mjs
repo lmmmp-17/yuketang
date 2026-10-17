@@ -9,6 +9,10 @@ export const defaults = {
     profileDir: '.chrome-profile',      /* 仅 launch 模式使用 */
     url: '',
     logLevel: 'quiet',                  /* silent | quiet | normal | verbose */
+    autoLaunch: true,                   /* 连不上调试端口时自己启动专用 Chrome */
+    chromePath: '',                     /* Chrome 可执行文件，空 = 自动找 */
+    chromeProfile: '',                  /* 专用 Chrome 的 profile 目录，空 = 用户目录下的 yuketang-chrome */
+    waitCourseMs: 0,                    /* 等用户打开学习空间页面的上限，0 = 一直等 */
 
     /* 学习 */
     mute: true,                         /* 起播前静音, 一点声音都不出; --no-mute 关掉 */
@@ -42,10 +46,10 @@ export const defaults = {
 const NUMBERS = new Set([
     'cdpPort', 'maxItems', 'maxResumeTries', 'catalogTimeoutMs', 'actionTimeoutMs', 'pollIntervalMs',
     'videoWaitMs', 'itemSwitchWaitMs', 'guardNoProgressMs', 'resumeCooldownMs', 'longBreakChance',
-    'bufferingTimeoutMs',
+    'bufferingTimeoutMs', 'waitCourseMs',
 ]);
 const FLAGS = new Set([
-    'mute', 'articles', 'allowScriptedPlay', 'resumeWhileHidden', 'idleActivity',
+    'mute', 'articles', 'allowScriptedPlay', 'resumeWhileHidden', 'idleActivity', 'autoLaunch',
 ]);
 
 const camel = (name) => name.replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
@@ -55,12 +59,14 @@ export function parseArgs(argv) {
     let check = false;
     let inspect = false;
     let help = false;
+    let setup = false;
 
     for (let i = 0; i < argv.length; i += 1) {
         const token = argv[i];
         if (token === '--help' || token === '-h') { help = true; continue; }
         if (token === '--check') { check = true; continue; }
         if (token === '--inspect') { inspect = true; continue; }
+        if (token === '--setup') { setup = true; continue; }
         if (token === '--launch') { options.mode = 'launch'; continue; }
         if (token === '--connect') { options.mode = 'connect'; continue; }
         if (!token.startsWith('--')) throw new Error(`无法识别的参数: ${token}`);
@@ -102,37 +108,42 @@ export function parseArgs(argv) {
         throw new Error('--mode 只能是 connect 或 launch');
     }
 
-    return { config: { ...defaults, ...options }, check, inspect, help };
+    return { config: { ...defaults, ...options }, check, inspect, help, setup };
 }
 
 export const helpText = `
 用真实浏览器学习长江雨课堂「学习空间」里的视频和图文
 
 用法
-  node run.mjs [选项]
+  Windows：双击仓库根目录的 start.cmd；Linux / macOS：./start.sh
+  或者在 playwright/ 目录下：node run.mjs [选项]
 
-浏览器接入
-  --connect               连接已在运行的 Chrome（默认，特征最低）
-  --cdp-port <端口>       CDP 端口，默认 9222
-  --launch                让脚本自己启动本机 Chrome
-  --profile-dir <目录>    launch 模式的 profile 目录，默认 .chrome-profile
-  --url <地址>            没有打开着的学习空间页面时用它打开
+  第一次运行会自动安装依赖。连不上 Chrome 时会自己启动一个专用的 Chrome
+  （独立 profile、静音），在里面登录、点开课程里的任意一个视频，脚本就会开始。
+
+浏览器
+  --cdp-port <端口>       调试端口，默认 9222
+  --chrome-path <路径>    Chrome 可执行文件，默认自动找
+  --chrome-profile <目录> 专用 Chrome 的 profile 目录，默认用户目录下的 yuketang-chrome
+  --no-auto-launch        连不上时不自动启动 Chrome，只报错
+  --url <地址>            直接打开这个学习空间页面，不等你手动点
+  --wait-course-ms <ms>   等你打开学习空间页面的上限，默认 0 = 一直等
+  --launch                改用 Playwright 启动 Chrome（特征多一些，不推荐）
+  --profile-dir <目录>    --launch 模式的 profile 目录，默认 .chrome-profile
 
 行为
-  --check                 只做特征自检并退出，不动学习进度
-  --inspect               只读检查页面结构(目录、当前项、播放器)，适配页面改版时
-                          先跑它；不点击、不播放
-  --max-items <n>         最多学多少项，默认不限
+  --max-items <n>         学完 n 项就停，默认不限
   --no-articles           只看视频，跳过图文
-  --no-mute               起播时不静音（默认静音：起播前就把播放器设成静音，不会外放）
+  --no-mute               起播时不静音（默认静音，不会外放）
   --no-idle-activity      关掉播放期间的指针微动
   --no-resume-while-hidden  页面在后台时不去动播放状态
   --no-allow-scripted-play  禁止退回 video.play()，只用真实点击
   --poll-interval-ms <ms> 进度轮询基准间隔，默认 1200
   --log-level <档>        silent | quiet | normal | verbose
 
-先这样启动 Chrome（独立 profile，第一次需要在里面登录一次雨课堂）：
-  google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/yuketang-chrome" --mute-audio &
-在里面打开课程的学习空间页面（点进任意一个视频），然后：
-  node run.mjs
+其它
+  --setup                 重新安装依赖
+  --check                 只做特征自检并退出，不动学习进度
+  --inspect               只读检查目录和当前项，不点击、不播放
+  --help                  显示这段说明
 `;

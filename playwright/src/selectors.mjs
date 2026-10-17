@@ -41,6 +41,10 @@ export const KIND = {
 };
 
 export const WORKSPACE_PATH = /\/ai-workspace\/lms-graph\//;
+/* 脚本要接管的页面（学习空间）的地址特征 */
+export const COURSE_PAGE = WORKSPACE_PATH;
+/* 自动启动专用 Chrome 时打开的页面 */
+export const HOME_URL = 'https://changjiang.yuketang.cn/';
 
 export const ALLOWED_HOSTS = ['yuketang.cn'];
 
