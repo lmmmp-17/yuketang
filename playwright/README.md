@@ -1,8 +1,10 @@
-# 真实浏览器版
+# Playwright 版：技术说明
+
+**怎么装、怎么用，见仓库根目录 [README 的快速开始](../README.md#快速开始playwright-版)。** 这里记录的是在真实页面上观察到的东西、做法背后的原因，以及还没确认的地方。
 
 用你本机的 Chrome 打开长江雨课堂「学习空间」，像人一样点开视频、放完、换下一个。观看记录由平台自己的播放器上报，这里不调用任何接口。
 
-和上一级目录的 `main.py` 是两条完全不同的路：`main.py` 不播放视频，直接往 `/video-log/heartbeat/` 发自己拼出来的心跳。这个版本什么都不拼，所以不存在“请求长得像不像”的问题。
+和 [`legacy/main.py`](../legacy/main.py) 是两条完全不同的路：`main.py` 不播放视频，直接往 `/video-log/heartbeat/` 发自己拼出来的心跳。这个版本什么都不拼，所以不存在“请求长得像不像”的问题。
 
 ## 为什么不在 main.py 上改
 
@@ -16,43 +18,6 @@
 - `main.py` 默认 3 个视频并发、1.5 倍速；同一个账号同时在“看”三个视频，这一条本身就说明问题
 
 另外，现在课程用的是新版「学习空间」（`/ai-workspace/lms-graph/...`），`main.py` 针对的是旧版的 `/v2/web/xcloud/video-student/...` 页面。
-
-## 用法
-
-```bash
-cd browser
-npm install          # 只装 playwright-core，不下载浏览器
-```
-
-第一步，启动一个可被接管的 Chrome（独立 profile，第一次需要在里面登录一次雨课堂）：
-
-```bash
-# Linux
-google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/yuketang-chrome" --mute-audio &
-
-# macOS
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --remote-debugging-port=9222 --user-data-dir="$HOME/yuketang-chrome" --mute-audio &
-
-# Windows
-"%ProgramFiles%\Google\Chrome\Application\chrome.exe" ^
-  --remote-debugging-port=9222 --user-data-dir="%USERPROFILE%\yuketang-chrome" --mute-audio
-```
-
-`--mute-audio` 让这个专用实例整个不出声，页面读不到它。脚本默认也会在起播前把播放器静音，这一项是兜底。
-
-第二步，在那个窗口里登录，打开课程，点进任意一个视频（地址里带 `/ai-workspace/lms-graph/`）。从哪一项开始，就从哪一项往后学；后面学完了会回到前面还没完成的。
-
-第三步：
-
-```bash
-node run.mjs              # 开始
-node run.mjs --inspect    # 只读看目录和当前项，不点不播
-node run.mjs --check      # 特征自检
-node run.mjs --help       # 全部参数
-```
-
-常用参数：`--max-items <n>` 学几项就停，`--no-articles` 只看视频，`--no-mute` 不静音，`--log-level verbose` 看全部细节。
 
 ## 它做什么
 

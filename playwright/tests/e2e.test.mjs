@@ -41,7 +41,7 @@ async function launch() {
     try {
         ({ chromium } = await import('playwright-core'));
     } catch (e) {
-        return { skip: '未安装 playwright-core（在 browser/ 下执行 npm install）' };
+        return { skip: '未安装 playwright-core（在 playwright/ 下执行 npm install）' };
     }
     const profileDir = await mkdtemp(join(tmpdir(), 'ykt-e2e-'));
     try {

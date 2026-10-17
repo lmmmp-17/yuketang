@@ -25,7 +25,7 @@ async function loadPlaywright() {
         return await import('playwright-core');
     } catch (e) {
         const error = new Error(
-            '未找到 playwright-core。在 browser/ 目录下执行 npm install 即可（它不会下载浏览器，直接用你本机的 Chrome）。'
+            '未找到 playwright-core。在 playwright/ 目录下执行 npm install 即可（它不会下载浏览器，直接用你本机的 Chrome）。'
         );
         error.cause = e;
         throw error;
