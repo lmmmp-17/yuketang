@@ -145,10 +145,14 @@ test('播放中但在缓冲时只等着，不去点播放键；缓冲太久才�
     }
 });
 
-test('等待时长会抖动；指针起点是 (0,0)', () => {
-    const values = new Set();
-    for (let i = 0; i < 40; i += 1) values.add(human.ms(1000));
-    assert.ok(values.size > 15);
+test('等待时长的离散度贴近真人实测值；指针起点是 (0,0)', () => {
+    /* 本地靶场实测：真人连续操作的间隔变异系数是 0.45~0.49，均匀取值只有 0.17~0.28 */
+    for (const spec of [[2600, 9000], 1000]) {
+        const xs = Array.from({ length: 20000 }, () => human.ms(spec));
+        const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+        const cv = Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / (xs.length - 1)) / mean;
+        assert.ok(cv > 0.40 && cv < 0.55, `${JSON.stringify(spec)} 的 CV 实际 ${cv.toFixed(3)}`);
+    }
     const pointer = createPointer({ viewportSize: () => ({ width: 1280, height: 800 }), mouse: {} });
     assert.deepEqual([pointer.state.x, pointer.state.y], [0, 0]);
 });

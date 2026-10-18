@@ -50,7 +50,7 @@
 
 ### 3. 想改行为时加参数
 
-参数加在启动命令后面，比如 `./start.sh --max-items 1`。Windows 上要加参数的话，在命令行里进入仓库目录执行 `start.cmd --max-items 1`。
+参数加在启动命令后面，比如 `./start.sh --max-items 1`。Windows 上要加参数的话，在命令行里进入仓库目录执行 `.\start.cmd --max-items 1`（前面的 `.\` 不能省，某些环境下 cmd 不会在当前目录找可执行文件）。
 
 | 参数 | 作用 |
 | --- | --- |

@@ -143,7 +143,42 @@ export class LearningRunner {
 
     /* ---------------- 主循环 ---------------- */
 
+    /* 刚接管页面时先真实地动一下：移动指针、小幅滚一下再滚回来。
+     *
+     * 两个理由：
+     * 1. 人打开一个页面本来就会先动一动、滚一下看看，不会盯着不动好几秒。
+     * 2. 本地靶场实测：被调试端口接管的浏览器里（Playwright 自己启动和接管已有
+     *    Chrome 都一样），navigator.userActivation.hasBeenActive 会在页面加载约
+     *    1.5 秒后自行变成 true，而普通 Chrome 要等真实交互。于是出现一个自相
+     *    矛盾的状态——「浏览器说用户激活过，页面却一个可信输入事件都没收到」。
+     *    以前的启动延迟反而让这个状态一直挂着：越是加「像人的延迟」，窗口开得越久。
+     *    先做一次真实输入就把它合上了。
+     *
+     * 用滚轮而不是点击：滚轮同样是可信输入，但不会触发页面上任何东西。 */
+    async settleIn() {
+        try {
+            /* 接管之后先有个反应时间，不要在同一毫秒就动 */
+            await sleepFor([250, 900]);
+            const size = this.page.viewportSize() || await this.page.evaluate(
+                () => ({ width: window.innerWidth, height: window.innerHeight }),
+            );
+            await this.pointer.moveTo({
+                x: size.width * human.float(0.3, 0.7),
+                y: size.height * human.float(0.3, 0.6),
+            });
+            const delta = human.int(90, 260);
+            await this.page.mouse.wheel(0, delta);
+            await sleepFor([400, 1200]);
+            /* 滚回原处，不改变页面位置 */
+            await this.page.mouse.wheel(0, -delta);
+            this.log.trace('已做一次真实滚动');
+        } catch (e) {
+            this.log.trace('开场滚动失败，跳过:', e.message.split('\n')[0]);
+        }
+    }
+
     async run() {
+        await this.settleIn();
         await sleepFor(this.config.startupDelayMs);
         await this.page.waitForSelector(SEL.leaf, { timeout: this.config.catalogTimeoutMs });
         const entries = await this.readCatalog();
