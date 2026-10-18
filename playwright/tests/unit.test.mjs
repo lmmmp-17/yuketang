@@ -93,7 +93,9 @@ test('指针微动的间隔铺满配置区间, 不被轮询压成固定节拍', 
         }
         const gaps = fired.slice(1).map((at, i) => (at - fired[i]) / 1000);
         const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-        assert.ok(mean > 32 && mean < 41, `平均间隔应在区间中部, 实际 ${mean.toFixed(1)} 秒`);
+        /* 对数正态在 [18,55] 秒上的均值约 40 秒(实测 25 轮落在 39.7~44.5)。
+         * 每轮重抽阈值的老写法会把它压到约 25 秒——这条就是用来挡那个的。 */
+        assert.ok(mean > 34 && mean < 50, `平均间隔应接近分布本身的均值, 实际 ${mean.toFixed(1)} 秒`);
         assert.ok(gaps.filter((g) => g > 45).length > gaps.length * 0.15, '应当有相当比例的长间隔');
     } finally {
         Date.now = realNow;

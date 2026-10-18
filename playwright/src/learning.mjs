@@ -10,6 +10,7 @@
  * ------------------------------------------------------------------ */
 import { SEL, KIND } from './selectors.mjs';
 import { human, sleep, sleepFor } from './human.mjs';
+import { bar, clip, formatDuration, formatTime } from './display.mjs';
 
 /* 目录按页面顺序读成一串条目：学习项，以及折叠着的知识点节点。
  *
@@ -55,6 +56,8 @@ export class LearningRunner {
         this.expanded = new Set();
         this.lostTries = 0;
         this.justOpened = null;
+        this.startedAt = Date.now();
+        this.currentTitle = '';
         this.lastDriftAt = Date.now();
         this.nextDriftAt = null;
     }
@@ -190,7 +193,9 @@ export class LearningRunner {
         const current = leaves.find((entry) => entry.active);
         const folded = entries.filter((entry) => entry.type === 'node').length;
         this.log.say(`目录：${summary}（已完成/总数）${folded ? `，另有 ${folded} 个折叠的知识点` : ''}`);
+        this.currentTitle = current ? current.title : '';
         this.log.say(`当前：${current ? `${current.kind}「${current.title}」` : '未定位'}`);
+        this.log.say('开始了。可以把浏览器窗口放到后面去，但别最小化。按 Ctrl+C 停止。');
 
         while (!this.stopped) {
             const now = (await this.readCatalogSettled() || []).find((entry) => entry.type === 'leaf' && entry.active);
@@ -255,8 +260,11 @@ export class LearningRunner {
         }
         const until = Date.now() + wait;
         while (!this.stopped && Date.now() < until) {
+            const left = Math.ceil((until - Date.now()) / 1000);
+            this.log.status(`⏸ 这一项结束，${left} 秒后换下一项 · 本次已学完 ${this.itemsDone} 项`);
             await sleep(Math.min(1000, until - Date.now()));
         }
+        this.log.clearStatus();
     }
 
     /* ---------------- 换下一项 ---------------- */
@@ -313,6 +321,7 @@ export class LearningRunner {
     }
 
     async openItem(target) {
+        this.currentTitle = target.title;
         this.log.say(`切换到：${target.kind}「${target.title}」`);
         const locator = this.page.locator(SEL.leaf).nth(target.index);
         const fromUrl = this.page.url();
@@ -447,7 +456,7 @@ export class LearningRunner {
             this.stop('起播失败');
             return 'stopped';
         }
-        this.log.say(`开始播放（${this.formatTime(first ? first.currentTime : 0)} / ${this.formatTime(first ? first.duration : 0)}）`);
+        this.log.say(`开始播放（${formatTime(first ? first.currentTime : 0)} / ${formatTime(first ? first.duration : 0)}）`);
         return this.watchUntilEnd();
     }
 
@@ -475,7 +484,8 @@ export class LearningRunner {
 
             const nearEnd = state.duration > 0 && state.currentTime >= state.duration - 0.5;
             if (state.ended || nearEnd) {
-                this.log.say(`播放完成：${this.formatTime(state.currentTime)} / ${this.formatTime(state.duration)}`);
+                this.log.clearStatus();
+                this.log.say(`✓ 看完「${this.currentTitle || '本项'}」（${formatTime(state.duration)}）`);
                 return 'ended';
             }
 
@@ -483,8 +493,9 @@ export class LearningRunner {
                 lastTime = state.currentTime;
                 lastProgressAt = Date.now();
                 failedResumes = 0;
-                this.log.trace(`进度 ${this.formatTime(state.currentTime)} / ${this.formatTime(state.duration)}`);
+                this.log.trace(`进度 ${formatTime(state.currentTime)} / ${formatTime(state.duration)}`);
             }
+            this.showPlaying(state);
 
             const stalledMs = Date.now() - lastProgressAt;
             /* 实测: 切到一个 31 分钟的视频后, 播放器已处于播放状态, 但 CDN 迟迟不给数据
@@ -554,6 +565,8 @@ export class LearningRunner {
         this.log.say(`阅读图文，约 ${Math.round(total / 1000)} 秒`);
         const until = Date.now() + total;
         while (!this.stopped && Date.now() < until) {
+            const left = Math.ceil((until - Date.now()) / 1000);
+            this.log.status(`📖 ${clip(this.currentTitle || '图文')} · 还剩 ${left} 秒`);
             await sleep(Math.min(human.ms(this.config.articleScrollMs), Math.max(0, until - Date.now())));
             if (this.stopped || Date.now() >= until) break;
             const box = await this.page.locator('.detail-container').first().boundingBox().catch(() => null);
@@ -564,13 +577,23 @@ export class LearningRunner {
             });
             await this.page.mouse.wheel(0, human.int(140, 520));
         }
+        this.log.clearStatus();
         return this.stopped ? 'stopped' : 'read';
     }
 
-    formatTime(seconds) {
-        const total = Math.max(0, Math.round(Number(seconds) || 0));
-        const m = String(Math.floor(total / 60)).padStart(2, '0');
-        const s = String(total % 60).padStart(2, '0');
-        return `${m}:${s}`;
+    /* 播放中的状态行：正在看什么、看到哪、本次已学完多少 */
+    showPlaying(state) {
+        const ratio = state.duration > 0 ? state.currentTime / state.duration : 0;
+        const done = this.itemsDone ? ` · 本次已学完 ${this.itemsDone} 项` : '';
+        this.log.status(
+            `▶ ${clip(this.currentTitle || '视频')}  ${bar(ratio)} ${String(Math.round(ratio * 100)).padStart(3)}%`
+            + `  ${formatTime(state.currentTime)}/${formatTime(state.duration)}${done}`,
+        );
+    }
+
+    /* 收尾时说一句人话：这次跑了多久、学完几项 */
+    reportRun(reason) {
+        this.log.clearStatus();
+        this.log.say(`—— ${reason}：本次学完 ${this.itemsDone} 项，用时 ${formatDuration(Date.now() - this.startedAt)} ——`);
     }
 }

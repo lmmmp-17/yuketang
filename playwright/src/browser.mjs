@@ -183,15 +183,20 @@ export async function pickCoursePage(context, config, log, abort = { stopped: fa
 
     log.say('请在 Chrome 里登录雨课堂，进入要学的课程，点开任意一个视频（地址里带 /ai-workspace/lms-graph/）。打开之后会自动开始，按 Ctrl+C 退出。');
     const deadline = config.waitCourseMs > 0 ? Date.now() + config.waitCourseMs : Infinity;
+    const waitingSince = Date.now();
     while (!abort.stopped && Date.now() < deadline) {
         await sleep(1500);
+        /* 转一下让用户知道脚本还活着, 不是卡死了 */
+        log.status(`⏳ 等你打开课程里的视频…（已等 ${Math.round((Date.now() - waitingSince) / 1000)} 秒，Ctrl+C 退出）`);
         const page = find();
         if (page) {
+            log.clearStatus();
             log.say(`找到学习空间页面: ${page.url()}`);
             /* 页面刚开始加载，让它先稳一会儿再动手 */
             await page.waitForLoadState('domcontentloaded').catch(() => {});
             return page;
         }
     }
+    log.clearStatus();
     throw new Error(abort.stopped ? '已退出' : '等了很久没有看到学习空间页面，已退出。');
 }
