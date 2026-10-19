@@ -208,7 +208,10 @@ test('另一套播放器(xtplayer)：同样能识别、起播、切倍速', asyn
     const log = probe.log.join(' | ');
     assert.deepEqual(probe.rejected, [], `出现了不可信事件: ${probe.rejected}`);
     assert.ok(probe.log.includes('play:big:V4'), `应当真实点大播放按钮起播: ${log}`);
-    assert.ok(probe.log.includes('muted:V4'), `应当静音: ${log}`);
+    /* 这套播放器有看门狗，直接设 muted 会被它改回去，必须点它自己的音量按钮 */
+    assert.ok(probe.log.includes('mute-reset:V4'), `桩应当复现看门狗把 muted 改回去: ${log}`);
+    assert.ok(probe.log.includes('volume-click:V4'), `应当回退去点播放器的音量按钮: ${log}`);
+    assert.ok(probe.log.includes('muted:V4'), `最终应当是静音的: ${log}`);
     assert.ok(probe.log.includes('rate:2:V4'), `应当切到菜单里最高的 2x: ${log}`);
     assert.ok(probe.log.includes('ended:V4'), `应当播完: ${log}`);
     assert.equal(probe.scriptedPlays, 0, '不应退回 video.play()');

@@ -42,6 +42,10 @@ export const SEL = {
     bigPlayButton: '.status-box .play-status-box, .xt_video_bit_play_btn',
     controlBox: '.control-box, .xt_video_player_controls',
     playButton: '.control-box .play-btn, .xt_video_player_play_btn',
+    /* 静音：xtplayer 有个看门狗，我们设的 video.muted 会在一两秒内被它改回去
+     * （实测事件序列 pause → volumechange → play → volumechange），只能点它自己的
+     * 音量按钮，点一下 volume 归零并且保持得住。数字人播放器设 muted 就够了。 */
+    volumeButton: '.volume-btn-box .volume-btn, .xt_video_player_volume .xt_video_player_common_icon',
     rateButton: '.rate-btn-box .rate-btn, .xt_video_player_speed .xt_video_player_common_value',
     /* 清晰度菜单(高清/标清)用的是同一个 common_list 类名, 所以要限定在倍速按钮里面 */
     rateMenuItem: '.rate-btn-box .rate-config-item, .xt_video_player_speed .xt_video_player_common_list li',

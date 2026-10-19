@@ -47,6 +47,8 @@
   .xt_video_player_speed:hover .xt_video_player_common_list_wrap { display: block; }
   .xt_video_player_common_list { list-style: none; margin: 0; padding: 0; }
   .xt_video_player_common_list li { height: 26px; line-height: 26px; color: #fff; cursor: pointer; text-align: center; }
+  .xt_video_player_volume { display: block; position: absolute; right: 64px; top: 12px; width: 20px; height: 20px; }
+  .xt_video_player_common_icon { display: block; width: 20px; height: 20px; background: #ccc; cursor: pointer; }
   .article-body { height: 360px; overflow-y: auto; border: 1px solid #ddd; display: none; }
   .article-body p { height: 120px; margin: 0; border-bottom: 1px solid #eee; }
 </style>
@@ -191,6 +193,7 @@ function xtMarkup() {
     + '<xt-speedlist class="xt_video_player_common_list_wrap"><ul class="xt_video_player_common_list">'
     + ['2', '1.5', '1.25', '1', '0.5'].map((r) => `<li data-speed="${r}"${r === '1' ? ' class="xt_video_player_common_active"' : ''}>${Number(r).toFixed(2)}X</li>`).join('')
     + '</ul></xt-speedlist></xt-speedbutton>'
+    + '<xt-volumebutton class="xt_video_player_volume xt_video_player_common fr"><xt-icon class="xt_video_player_common_icon"></xt-icon></xt-volumebutton>'
     + '<xt-qualitybutton class="xt_video_player_quality xt_video_player_common fr"><xt-qualitylist class="xt_video_player_common_list_wrap">'
     + '<ul class="xt_video_player_common_list"><li>高清</li><li>标清</li></ul></xt-qualitylist></xt-qualitybutton>'
     + '</xt-inner></xt-controls></xt-wrap></div></div></div>';
@@ -212,7 +215,21 @@ function mountPlayer(id) {
   def('currentTime', () => at); def('duration', () => DURATION); def('paused', () => paused);
   def('ended', () => at >= DURATION); def('readyState', () => 4);
   video.play = () => { probe.scriptedPlays += 1; probe.log.push('scripted-play'); paused = false; return Promise.resolve(); };
-  video.addEventListener('volumechange', () => { if (video.muted) probe.log.push('muted:' + id); });
+  /* 两套播放器的静音方式不同: 一套设 muted, 另一套把 volume 归零 */
+  video.addEventListener('volumechange', () => {
+    if (video.muted || video.volume === 0) probe.log.push('muted:' + id);
+  });
+  if (xt) {
+    /* 照实测: 这套播放器有看门狗, 外部设的 muted 会在一两秒内被它改回去,
+     * 只有点它自己的音量按钮才作数。少了这一条, 桩就测不到回退那条路。 */
+    video.addEventListener('volumechange', () => {
+      if (video.muted) setTimeout(() => { video.muted = false; probe.log.push('mute-reset:' + id); }, 500);
+    });
+    box.querySelector('.xt_video_player_common_icon').addEventListener('click', trusted('volume', () => {
+      video.volume = 0;
+      probe.log.push('volume-click:' + id);
+    }));
+  }
   const play = (via) => trusted('player:' + via, () => {
     probe.realPlayClicks += 1;
     probe.log.push('play:' + via + ':' + id);

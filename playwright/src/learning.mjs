@@ -124,6 +124,9 @@ export class LearningRunner {
                 paused: el.paused,
                 ended: el.ended,
                 muted: el.muted,
+                volume: el.volume,
+                /* 两套播放器的静音方式不同：一套设 muted，另一套把 volume 归零 */
+                silent: el.muted || el.volume === 0,
                 readyState: el.readyState,
                 seeking: el.seeking,
                 rate: el.playbackRate,
@@ -373,16 +376,41 @@ export class LearningRunner {
         return false;
     }
 
-    /* 起播前静音。直接设 muted: 页面只会收到一个普通的 volumechange。
-     * 必须在任何一次起播点击之前做, 否则会先外放一两秒。 */
+    /* 起播前静音，必须在任何一次起播点击之前做，否则会先外放一两秒。
+     *
+     * 两套播放器要用不同的办法：
+     *   数字人播放器   设 el.muted = true 就行，页面只收到一个普通的 volumechange
+     *   xtplayer      它有看门狗，会在一两秒内把 muted 改回 false（实测），
+     *                 只能点它自己的音量按钮——点一下 volume 归零，而且保持得住
+     * 所以先试便宜的那种，被撤销了再去点控件。 */
     async ensureMuted() {
         if (!this.config.mute) return;
-        const changed = await this.page.locator(SEL.video).first().evaluate((el) => {
-            if (el.muted) return false;
-            el.muted = true;
-            return true;
-        }, undefined, { timeout: 3000 }).catch(() => false);
-        if (changed) this.log.note('已静音');
+        const state = await this.videoState();
+        if (state && state.silent) return;
+
+        await this.page.locator(SEL.video).first()
+            .evaluate((el) => { el.muted = true; }, undefined, { timeout: 3000 })
+            .catch(() => {});
+        await sleepFor([900, 1600]);
+        if ((await this.videoState() || {}).silent) {
+            this.log.note('已静音');
+            return;
+        }
+
+        /* 被播放器改回去了：点它自己的音量按钮 */
+        try {
+            await this.revealControls();
+            await this.pointer.click(this.page.locator(SEL.volumeButton).first(), { timeoutMs: 4000 });
+            await sleepFor([400, 900]);
+        } catch (e) {
+            this.log.trace(`点音量按钮没成功: ${e.message.split('\n')[0]}`);
+        }
+        const after = await this.videoState();
+        if (after && after.silent) {
+            this.log.note('已静音（点的播放器音量键）');
+        } else {
+            this.log.warn('没能让播放器静音，声音可能会外放。启动 Chrome 时加 --mute-audio 可以兜底。');
+        }
     }
 
     /* 控制栏平时 display:none, 指针进到播放器里才出来。

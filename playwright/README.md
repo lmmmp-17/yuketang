@@ -35,10 +35,27 @@
 - 切到一个 31 分钟的视频时，CDN 约 50 秒才给数据（播放状态、`readyState` 1、`seeking`）。这时脚本只等着，不去点那个播放/暂停二合一的按钮；缓冲超过 2 分钟才停下。
 - 点展开图标会展开知识点，不会切走当前项。
 
+## 两套播放器
+
+这门课里混着用，适配时两套都要认：
+
+| | 数字人播放器 | xtplayer |
+| --- | --- | --- |
+| 容器 | `.digital-human-player-box` | `.xtplayer` |
+| 视频 | `video#video` | `video.xt_video_player`（id 动态生成，不能按 id 选） |
+| 大播放键 | `.play-status-box` | `.xt_video_bit_play_btn` |
+| 控制栏 | `.control-box` | `.xt_video_player_controls` |
+| 倍速 | `.rate-config-item`（`2x`） | `.xt_video_player_speed .xt_video_player_common_list li`（`2.00X`） |
+| 音量 | `.volume-btn` | `.xt_video_player_volume .xt_video_player_common_icon` |
+
+两套都提供到 2x。注意清晰度菜单（高清/标清）和倍速菜单共用 `common_list` 类名，倍速要限定在倍速按钮里面。
+
 ## 还没确认的
 
 - 视频播放中会不会弹题。脚本遇到弹窗会停下，不替你点。
-- 静音是直接设 `video.muted`，播放器自己的音量界面仍显示 100%（它只跟踪 `volume`）。心跳里不带音量字段。
+- 数字人播放器的音量按钮没实测过（代码只在 `muted` 被撤销时才会去点它，而那套播放器不撤销）。
+- 静音在两套播放器上方式不同：数字人播放器设 `video.muted` 就行；xtplayer 有个看门狗，会在一两秒内把外部设的 `muted` 改回去（实测事件序列 `pause → volumechange → play → volumechange`），只能点它自己的音量按钮——点一下 `volume` 归零并且保持得住。代码先试前者，被撤销再退到后者。
+- 同一个看门狗也会撤销 `video.pause()`：脚本退出后视频会继续播，要停得自己在页面上暂停或关掉标签页。
 
 ## 节奏与「用户激活」
 
