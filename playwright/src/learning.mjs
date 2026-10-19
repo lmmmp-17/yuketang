@@ -385,15 +385,31 @@ export class LearningRunner {
         if (changed) this.log.note('已静音');
     }
 
-    /* 控制栏平时 display:none, 指针进到播放器里才出来 */
+    /* 控制栏平时 display:none, 指针进到播放器里才出来。
+     *
+     * 实测(学习通那边同样的播放器行为)：控制栏再出现时带一段动画，只等一个
+     * 固定时长的话坐标可能读在动画中间，点下去就偏到隔壁控件上。所以等它
+     * 真的有了稳定的尺寸再返回。 */
     async revealControls() {
         const box = await this.page.locator(SEL.player).first().boundingBox().catch(() => null);
-        if (!box) return;
+        if (!box) return false;
         await this.pointer.moveTo({
             x: box.x + box.width * human.float(0.3, 0.7),
             y: box.y + box.height * human.float(0.55, 0.85),
         });
-        await sleepFor([350, 800]);
+        const bar = this.page.locator(SEL.controlBox).first();
+        let last = null;
+        for (let i = 0; i < 12; i += 1) {
+            await sleepFor([120, 260]);
+            const now = await bar.boundingBox().catch(() => null);
+            /* 连着两次读到同样的位置和高度，才算稳定下来 */
+            if (now && now.height > 0 && last
+                && Math.abs(now.y - last.y) < 1 && Math.abs(now.height - last.height) < 1) {
+                return true;
+            }
+            last = now;
+        }
+        return Boolean(last && last.height > 0);
     }
 
     /* 读播放器倍速菜单里有哪些档位。没有这个控件就返回 null（平台不让改倍速） */
@@ -431,33 +447,39 @@ export class LearningRunner {
             return target.rate;
         }
 
-        try {
-            await this.revealControls();
-            const item = this.page.locator(SEL.rateMenuItem).nth(target.index);
-            /* 先把指针移到倍速按钮上：这类菜单多半悬停就展开，没展开再点一下 */
-            const button = this.page.locator(SEL.rateButton).first();
-            const box = await button.boundingBox();
-            if (box) await this.pointer.moveTo({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
-            await sleepFor([250, 700]);
-            if (!await item.isVisible().catch(() => false)) {
-                await this.pointer.click(button, { timeoutMs: 4000 });
+        /* 点偏了就再来一次：控制栏刚弹出来那一下坐标容易读早 */
+        for (let attempt = 1; attempt <= 2 && !this.stopped; attempt += 1) {
+            try {
+                await this.revealControls();
+                const item = this.page.locator(SEL.rateMenuItem).nth(target.index);
+                /* 先把指针移到倍速按钮上：这类菜单多半悬停就展开，没展开再点一下 */
+                const button = this.page.locator(SEL.rateButton).first();
+                const box = await button.boundingBox();
+                if (box) await this.pointer.moveTo({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
                 await sleepFor([250, 700]);
+                if (!await item.isVisible().catch(() => false)) {
+                    await this.pointer.click(button, { timeoutMs: 4000 });
+                    await sleepFor([250, 700]);
+                }
+                await this.pointer.click(item, { timeoutMs: 4000 });
+                await sleepFor([300, 800]);
+            } catch (e) {
+                this.log.trace(`点倍速菜单第 ${attempt} 次没成功: ${e.message.split('\n')[0]}`);
             }
-            await this.pointer.click(item, { timeoutMs: 4000 });
-            await sleepFor([300, 800]);
-        } catch (e) {
-            this.log.note(`点倍速菜单没成功，保持原速: ${e.message.split('\n')[0]}`);
-            return null;
-        }
 
-        const after = await this.videoState();
-        if (!after || Math.abs(after.rate - target.rate) >= 0.01) {
+            /* 不管有没有抛错都按实际倍速判断：点偏到别的档位时也会抛超时，
+             * 那时倍速其实已经变了，不能照着"没动过"去报。 */
+            const after = await this.videoState();
+            if (after && Math.abs(after.rate - target.rate) < 0.01) {
+                this.log.say(`倍速切到 ${target.rate}x（菜单里最高的一档）`);
+                return target.rate;
+            }
+            if (attempt < 2) continue;
             /* 平台可能锁了倍速。不去写 playbackRate 硬改——那等于绕过它自己的控件 */
-            this.log.note(`倍速没能切到 ${target.rate}x（当前 ${after ? after.rate : '未知'}x），按原速播`);
+            this.log.note(`倍速没能切到 ${target.rate}x（当前 ${after ? after.rate : '未知'}x），按这个速度播`);
             return after ? after.rate : null;
         }
-        this.log.say(`倍速切到 ${target.rate}x（菜单里最高的一档）`);
-        return target.rate;
+        return null;
     }
 
     async startPlayback() {
