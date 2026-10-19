@@ -197,3 +197,20 @@ test('一键启动：连不上时自己开专用 Chrome，打开起始页，webd
         await rm(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
     }
 });
+
+test('另一套播放器(xtplayer)：同样能识别、起播、切倍速', async (t) => {
+    /* 实测这门课里两套播放器混着用: 数字人播放器是 video#video, 另一套是
+     * video.xt_video_player(id 动态生成)。只认前者时, 后者的视频会被判成
+     * "视频没加载"——哪怕它正在播。桩里 V2 用数字人, 其余用 xtplayer。 */
+    const out = await runFixture(t, { maxItems: 1 }, '?start=V4');
+    if (!out) return;
+    const { probe, runner } = out;
+    const log = probe.log.join(' | ');
+    assert.deepEqual(probe.rejected, [], `出现了不可信事件: ${probe.rejected}`);
+    assert.ok(probe.log.includes('play:big:V4'), `应当真实点大播放按钮起播: ${log}`);
+    assert.ok(probe.log.includes('muted:V4'), `应当静音: ${log}`);
+    assert.ok(probe.log.includes('rate:2:V4'), `应当切到菜单里最高的 2x: ${log}`);
+    assert.ok(probe.log.includes('ended:V4'), `应当播完: ${log}`);
+    assert.equal(probe.scriptedPlays, 0, '不应退回 video.play()');
+    assert.equal(runner.itemsDone, 1);
+});

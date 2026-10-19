@@ -25,15 +25,26 @@ export const SEL = {
     expandIcon: '.nav-list .expand-icon',
     unitTitle: '.learning-space-control-unit .unit-title',
     unitRate: '.learning-space-control-unit .rate-detail .text',
-    player: '.digital-human-player-box',
-    video: 'video#video',
-    bigPlayButton: '.status-box .play-status-box',
-    controlBox: '.control-box',
-    playButton: '.control-box .play-btn',
-    /* 倍速：控制栏右侧的档位菜单。实测这个播放器提供 0.75 / 1 / 1.25 / 1.5 / 2 五档，
-     * 菜单项文字形如 "2x"，当前那条带 .active。控制栏本身要指针移进播放器才显示。 */
-    rateButton: '.rate-btn-box .rate-btn',
-    rateMenuItem: '.rate-config-item',
+    /* 实测这门课里有两套播放器，同一个课程目录下混着用，所以下面每一项都要同时认两套：
+     *
+     *   数字人播放器   .digital-human-player-box   video#video
+     *                 大播放键 .play-status-box    控制栏 .control-box
+     *                 倍速 .rate-config-item（文字 "2x"）
+     *   xtplayer      .xtplayer                   video.xt_video_player（id 是动态生成的）
+     *                 大播放键 .xt_video_bit_play_btn
+     *                 控制栏 .xt_video_player_controls
+     *                 倍速 .xt_video_player_common_list li（文字 "2.00X"）
+     *
+     * 两套都提供到 2x。只认 video#video 的话，xtplayer 那些视频会被判成"视频没加载"，
+     * 哪怕它正在播——这是实测踩到的。 */
+    player: '.digital-human-player-box, .xtplayer',
+    video: 'video#video, video.xt_video_player',
+    bigPlayButton: '.status-box .play-status-box, .xt_video_bit_play_btn',
+    controlBox: '.control-box, .xt_video_player_controls',
+    playButton: '.control-box .play-btn, .xt_video_player_play_btn',
+    rateButton: '.rate-btn-box .rate-btn, .xt_video_player_speed .xt_video_player_common_value',
+    /* 清晰度菜单(高清/标清)用的是同一个 common_list 类名, 所以要限定在倍速按钮里面 */
+    rateMenuItem: '.rate-btn-box .rate-config-item, .xt_video_player_speed .xt_video_player_common_list li',
     /* Element UI 的弹窗。视频被暂停又恢复不了时看看是不是它挡着 */
     dialog: '.el-dialog__wrapper, .el-message-box__wrapper, [role="dialog"]',
 };

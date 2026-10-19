@@ -31,6 +31,22 @@
   .rate-config-box { display: none; position: absolute; bottom: 34px; right: 0; width: 70px; background: #222; }
   .rate-btn-box.open .rate-config-box { display: block; }
   .rate-config-item { height: 26px; line-height: 26px; color: #fff; cursor: pointer; text-align: center; }
+  /* 第二套播放器(xtplayer)照实测的类名来: 自定义标签默认是 inline, 要给 display */
+  .xtplayer { position: relative; width: 606px; height: 307px; background: #333; }
+  .xt_video_player_wrap, .xt_video_player_container, .video-box { display: block; width: 100%; height: 100%; }
+  video.xt_video_player { width: 100%; height: 100%; }
+  .xt_video_player_big_play_layer { display: block; position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .xt_video_player_big_play_layer.hidden { display: none; }
+  .xt_video_bit_play_btn { position: absolute; left: 269px; top: 120px; width: 68px; height: 68px; cursor: pointer; }
+  .xt_video_player_controls { display: block; position: absolute; left: 0; bottom: 0; width: 100%; height: 44px; background: #111; }
+  .xt_video_player_controls_inner { display: block; position: relative; height: 44px; }
+  .xt_video_player_play_btn { display: block; position: absolute; left: 8px; top: 6px; width: 32px; height: 32px; background: #ccc; cursor: pointer; }
+  .xt_video_player_speed { display: block; position: absolute; right: 8px; top: 6px; width: 48px; height: 32px; }
+  .xt_video_player_common_value { display: block; width: 48px; height: 32px; color: #fff; text-align: center; cursor: pointer; }
+  .xt_video_player_common_list_wrap { display: none; position: absolute; bottom: 34px; right: 0; width: 70px; background: #222; }
+  .xt_video_player_speed:hover .xt_video_player_common_list_wrap { display: block; }
+  .xt_video_player_common_list { list-style: none; margin: 0; padding: 0; }
+  .xt_video_player_common_list li { height: 26px; line-height: 26px; color: #fff; cursor: pointer; text-align: center; }
   .article-body { height: 360px; overflow-y: auto; border: 1px solid #ddd; display: none; }
   .article-body p { height: 120px; margin: 0; border-bottom: 1px solid #eee; }
 </style>
@@ -151,16 +167,41 @@ render(CATALOG, document.getElementById('nav'));
 const DURATION = 12;  /* 留出调倍速的时间 */
 /* 真实播放器会记住上次选的倍速(实测重新加载页面后仍是 2x), 桩也照做 */
 let rememberedRate = 1;
-function mountPlayer(id) {
-  const wrap = document.getElementById('player-wrap');
-  wrap.innerHTML = '<div class="digital-human-player-box"><div class="digital-human-video-box main-video"><div class="video-view-box">'
+/* 数字人播放器的 markup */
+function digitalHumanMarkup() {
+  return '<div class="digital-human-player-box"><div class="digital-human-video-box main-video"><div class="video-view-box">'
     + '<video id="video" class="video-element"></video></div></div>'
     + '<div class="media-controls-subtitle-box"><div class="control-box"><div class="btn btn-32 play-btn"></div>'
     + '<div class="list-btn-box rate-btn-box"><div class="btn rate-btn">1x</div><div class="config-box rate-config-box">'
     + ['2', '1.5', '1.25', '1', '0.75'].map((r) => `<div class="config-item rate-config-item${r === '1' ? ' active' : ''}" data-rate="${r}"> ${r}x </div>`).join('')
     + '</div></div></div>'
     + '<div class="status-box status-box-show"><div class="play-status-box"></div></div></div></div>';
-  const box = wrap.querySelector('.digital-human-player-box');
+}
+
+/* 第二套播放器 xtplayer: 类名、标签、倍速文字("2.00X")都照实测来。
+ * 视频没有固定 id, 清晰度菜单也共用 common_list 类名, 所以一并放进来。 */
+function xtMarkup() {
+  return '<div class="xtplayer"><div id="video-box" class="video-box"><div class="xt_video_player_container video xt_pc">'
+    + '<xt-wrap class="xt_video_player_wrap"><video id="1792414492563_cfbe" class="xt_video_player"></video>'
+    + '<xt-bigbutton class="xt_video_player_big_play_layer pause_show"><button class="xt_video_bit_play_btn"></button></xt-bigbutton>'
+    + '<xt-controls class="xt_video_player_controls cf xt_video_player_controls_show"><xt-inner class="xt_video_player_controls_inner">'
+    + '<xt-playbutton class="xt_video_player_play_btn fl"></xt-playbutton>'
+    + '<xt-speedbutton class="xt_video_player_speed xt_video_player_common fr">'
+    + '<xt-speedvalue class="xt_video_player_common_value">1.00X</xt-speedvalue>'
+    + '<xt-speedlist class="xt_video_player_common_list_wrap"><ul class="xt_video_player_common_list">'
+    + ['2', '1.5', '1.25', '1', '0.5'].map((r) => `<li data-speed="${r}"${r === '1' ? ' class="xt_video_player_common_active"' : ''}>${Number(r).toFixed(2)}X</li>`).join('')
+    + '</ul></xt-speedlist></xt-speedbutton>'
+    + '<xt-qualitybutton class="xt_video_player_quality xt_video_player_common fr"><xt-qualitylist class="xt_video_player_common_list_wrap">'
+    + '<ul class="xt_video_player_common_list"><li>高清</li><li>标清</li></ul></xt-qualitylist></xt-qualitybutton>'
+    + '</xt-inner></xt-controls></xt-wrap></div></div></div>';
+}
+
+function mountPlayer(id) {
+  const wrap = document.getElementById('player-wrap');
+  /* 一门课里两套播放器混着用(实测), 所以桩里也混着, 一轮流程同时覆盖两套 */
+  const xt = id !== 'V2';
+  wrap.innerHTML = xt ? xtMarkup() : digitalHumanMarkup();
+  const box = wrap.querySelector('.digital-human-player-box, .xtplayer');
   const video = wrap.querySelector('video');
   video.dataset.leaf = id;
   let at = 0;
@@ -176,10 +217,12 @@ function mountPlayer(id) {
     probe.realPlayClicks += 1;
     probe.log.push('play:' + via + ':' + id);
     paused = false;
-    box.querySelector('.status-box').classList.remove('status-box-show');
+    /* 两套播放器都是起播后把中间那层大按钮收起来 */
+    box.querySelector('.status-box')?.classList.remove('status-box-show');
+    box.querySelector('.xt_video_player_big_play_layer')?.classList.add('hidden');
   });
-  box.querySelector('.play-status-box').addEventListener('click', play('big'));
-  box.querySelector('.play-btn').addEventListener('click', play('control'));
+  box.querySelector('.play-status-box, .xt_video_bit_play_btn').addEventListener('click', play('big'));
+  box.querySelector('.play-btn, .xt_video_player_play_btn').addEventListener('click', play('control'));
   box.addEventListener('mouseenter', trusted('player:hover', () => box.classList.add('hover')));
   box.addEventListener('mouseleave', () => box.classList.remove('hover'));
   const timer = setInterval(() => {
@@ -198,12 +241,15 @@ function mountPlayer(id) {
 
 /* 倍速: 点按钮展开菜单, 点档位才真正改倍速 */
 function rateBoxInit(box, video) {
-  const rateBox = box.querySelector('.rate-btn-box');
-  const label = rateBox.querySelector('.rate-btn');
+  const xt = box.classList.contains('xtplayer');
+  const rateBox = box.querySelector(xt ? '.xt_video_player_speed' : '.rate-btn-box');
+  const label = rateBox.querySelector(xt ? '.xt_video_player_common_value' : '.rate-btn');
+  const items = () => rateBox.querySelectorAll(xt ? '.xt_video_player_common_list li' : '.rate-config-item');
+  const activeClass = xt ? 'xt_video_player_common_active' : 'active';
   const mark = () => {
-    label.textContent = `${rememberedRate}x`;
-    rateBox.querySelectorAll('.rate-config-item').forEach((n) => {
-      n.classList.toggle('active', Number(n.dataset.rate) === rememberedRate);
+    label.textContent = xt ? `${rememberedRate.toFixed(2)}X` : `${rememberedRate}x`;
+    items().forEach((n) => {
+      n.classList.toggle(activeClass, Number(n.dataset.speed ?? n.dataset.rate) === rememberedRate);
     });
   };
   mark();
@@ -211,9 +257,9 @@ function rateBoxInit(box, video) {
     rateBox.classList.toggle('open');
     probe.log.push('rate-menu-open');
   }));
-  for (const el of rateBox.querySelectorAll('.rate-config-item')) {
+  for (const el of items()) {
     el.addEventListener('click', trusted('rate:item', () => {
-      rememberedRate = Number(el.dataset.rate);
+      rememberedRate = Number(el.dataset.speed ?? el.dataset.rate);
       video.playbackRate = rememberedRate;
       mark();
       rateBox.classList.remove('open');
