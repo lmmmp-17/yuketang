@@ -102,6 +102,11 @@ test('完整流程：放完当前视频，展开折叠的知识点，依次学�
         assert.ok(probe.log.includes(`ended:${id}`), `${id} 应当播完`);
     }
     assert.equal(probe.scriptedPlays, 0, '不应退回 video.play()');
+    /* 倍速走播放器自己的菜单, 切到最高的一档 */
+    assert.ok(probe.log.includes('rate:2:V2'), `应当切到菜单里最高的 2x: ${log}`);
+    /* 起播前 .status-box 遮罩盖住整个播放器, 控制栏点不到, 所以倍速在起播之后调 */
+    assert.ok(probe.log.indexOf('play:big:V2') < probe.log.indexOf('rate:2:V2'), '倍速应当在起播之后调');
+    assert.ok(probe.log.indexOf('rate:2:V2') < probe.log.indexOf('ended:V2'), '倍速应当在播完之前调好');
     assert.ok(probe.wheels > 0, '应当用真实滚轮滚过目录或图文');
     assert.equal(runner.itemsDone, 5, '三个视频加两篇图文');
 });

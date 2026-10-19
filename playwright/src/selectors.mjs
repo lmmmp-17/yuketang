@@ -30,6 +30,10 @@ export const SEL = {
     bigPlayButton: '.status-box .play-status-box',
     controlBox: '.control-box',
     playButton: '.control-box .play-btn',
+    /* 倍速：控制栏右侧的档位菜单。实测这个播放器提供 0.75 / 1 / 1.25 / 1.5 / 2 五档，
+     * 菜单项文字形如 "2x"，当前那条带 .active。控制栏本身要指针移进播放器才显示。 */
+    rateButton: '.rate-btn-box .rate-btn',
+    rateMenuItem: '.rate-config-item',
     /* Element UI 的弹窗。视频被暂停又恢复不了时看看是不是它挡着 */
     dialog: '.el-dialog__wrapper, .el-message-box__wrapper, [role="dialog"]',
 };

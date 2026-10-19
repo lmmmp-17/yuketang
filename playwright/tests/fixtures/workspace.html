@@ -25,6 +25,12 @@
   .control-box { display: none; position: absolute; left: 0; bottom: 0; width: 480px; height: 44px; background: #111; }
   .digital-human-player-box.hover .control-box { display: block; }
   .play-btn { position: absolute; left: 10px; top: 6px; width: 32px; height: 32px; background: #ccc; cursor: pointer; }
+  /* 倍速菜单照实测: 控制栏右侧, 菜单平时收起 */
+  .rate-btn-box { position: absolute; right: 10px; top: 6px; width: 48px; height: 32px; }
+  .rate-btn { width: 48px; height: 32px; background: #ccc; cursor: pointer; text-align: center; }
+  .rate-config-box { display: none; position: absolute; bottom: 34px; right: 0; width: 70px; background: #222; }
+  .rate-btn-box.open .rate-config-box { display: block; }
+  .rate-config-item { height: 26px; line-height: 26px; color: #fff; cursor: pointer; text-align: center; }
   .article-body { height: 360px; overflow-y: auto; border: 1px solid #ddd; display: none; }
   .article-body p { height: 120px; margin: 0; border-bottom: 1px solid #eee; }
 </style>
@@ -142,17 +148,25 @@ function render(items, parent) {
 render(CATALOG, document.getElementById('nav'));
 
 /* 数字人播放器，照实测：大播放按钮 .status-box .play-status-box，控制栏平时 display:none */
-const DURATION = 1.6;
+const DURATION = 12;  /* 留出调倍速的时间 */
+/* 真实播放器会记住上次选的倍速(实测重新加载页面后仍是 2x), 桩也照做 */
+let rememberedRate = 1;
 function mountPlayer(id) {
   const wrap = document.getElementById('player-wrap');
   wrap.innerHTML = '<div class="digital-human-player-box"><div class="digital-human-video-box main-video"><div class="video-view-box">'
     + '<video id="video" class="video-element"></video></div></div>'
-    + '<div class="media-controls-subtitle-box"><div class="control-box"><div class="btn btn-32 play-btn"></div></div>'
+    + '<div class="media-controls-subtitle-box"><div class="control-box"><div class="btn btn-32 play-btn"></div>'
+    + '<div class="list-btn-box rate-btn-box"><div class="btn rate-btn">1x</div><div class="config-box rate-config-box">'
+    + ['2', '1.5', '1.25', '1', '0.75'].map((r) => `<div class="config-item rate-config-item${r === '1' ? ' active' : ''}" data-rate="${r}"> ${r}x </div>`).join('')
+    + '</div></div></div>'
     + '<div class="status-box status-box-show"><div class="play-status-box"></div></div></div></div>';
   const box = wrap.querySelector('.digital-human-player-box');
   const video = wrap.querySelector('video');
+  video.dataset.leaf = id;
   let at = 0;
   let paused = true;
+  video.playbackRate = rememberedRate;
+  rateBoxInit(box, video);
   const def = (n, g) => Object.defineProperty(video, n, { get: g, configurable: true });
   def('currentTime', () => at); def('duration', () => DURATION); def('paused', () => paused);
   def('ended', () => at >= DURATION); def('readyState', () => 4);
@@ -180,6 +194,32 @@ function mountPlayer(id) {
       }
     }
   }, 40);
+}
+
+/* 倍速: 点按钮展开菜单, 点档位才真正改倍速 */
+function rateBoxInit(box, video) {
+  const rateBox = box.querySelector('.rate-btn-box');
+  const label = rateBox.querySelector('.rate-btn');
+  const mark = () => {
+    label.textContent = `${rememberedRate}x`;
+    rateBox.querySelectorAll('.rate-config-item').forEach((n) => {
+      n.classList.toggle('active', Number(n.dataset.rate) === rememberedRate);
+    });
+  };
+  mark();
+  label.addEventListener('click', trusted('rate:button', () => {
+    rateBox.classList.toggle('open');
+    probe.log.push('rate-menu-open');
+  }));
+  for (const el of rateBox.querySelectorAll('.rate-config-item')) {
+    el.addEventListener('click', trusted('rate:item', () => {
+      rememberedRate = Number(el.dataset.rate);
+      video.playbackRate = rememberedRate;
+      mark();
+      rateBox.classList.remove('open');
+      probe.log.push('rate:' + rememberedRate + ':' + video.dataset.leaf);
+    }));
+  }
 }
 
 function open(id) {

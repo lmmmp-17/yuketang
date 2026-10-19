@@ -126,6 +126,7 @@ export class LearningRunner {
                 muted: el.muted,
                 readyState: el.readyState,
                 seeking: el.seeking,
+                rate: el.playbackRate,
             }), undefined, { timeout: 3000 });
         } catch (e) {
             return null;
@@ -395,6 +396,70 @@ export class LearningRunner {
         await sleepFor([350, 800]);
     }
 
+    /* 读播放器倍速菜单里有哪些档位。没有这个控件就返回 null（平台不让改倍速） */
+    async readRates() {
+        const items = this.page.locator(SEL.rateMenuItem);
+        if (await items.count() === 0) return null;
+        return items.evaluateAll((nodes) => nodes
+            .map((node, index) => ({ index, rate: parseFloat(node.textContent.trim()) }))
+            .filter((item) => Number.isFinite(item.rate) && item.rate > 0));
+    }
+
+    /* 倍速切到播放器自己允许的最高档。
+     *
+     * 走播放器的菜单，不写 video.playbackRate：菜单里列出来的才是平台允许的档位，
+     * 倍速标签也由播放器自己更新。没有这个控件就不动。
+     * --playback-rate 1 等于维持原样；给具体数字则取不超过它的最高档。 */
+    async applyPlaybackRate() {
+        const wanted = this.config.playbackRate;
+        if (wanted !== 'max' && !(Number(wanted) > 1)) return null;
+
+        const current = await this.videoState();
+        const rates = await this.readRates();
+        if (!rates || !rates.length) {
+            this.log.note('这个播放器没有倍速菜单，保持原速');
+            return null;
+        }
+        const allowed = wanted === 'max' ? rates : rates.filter((item) => item.rate <= Number(wanted));
+        if (!allowed.length) {
+            this.log.note(`倍速菜单里没有不超过 ${wanted}x 的档位，保持原速`);
+            return null;
+        }
+        const target = allowed.reduce((best, item) => (item.rate > best.rate ? item : best));
+        if (current && Math.abs(current.rate - target.rate) < 0.01) {
+            this.log.note(`倍速已经是 ${target.rate}x`);
+            return target.rate;
+        }
+
+        try {
+            await this.revealControls();
+            const item = this.page.locator(SEL.rateMenuItem).nth(target.index);
+            /* 先把指针移到倍速按钮上：这类菜单多半悬停就展开，没展开再点一下 */
+            const button = this.page.locator(SEL.rateButton).first();
+            const box = await button.boundingBox();
+            if (box) await this.pointer.moveTo({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+            await sleepFor([250, 700]);
+            if (!await item.isVisible().catch(() => false)) {
+                await this.pointer.click(button, { timeoutMs: 4000 });
+                await sleepFor([250, 700]);
+            }
+            await this.pointer.click(item, { timeoutMs: 4000 });
+            await sleepFor([300, 800]);
+        } catch (e) {
+            this.log.note(`点倍速菜单没成功，保持原速: ${e.message.split('\n')[0]}`);
+            return null;
+        }
+
+        const after = await this.videoState();
+        if (!after || Math.abs(after.rate - target.rate) >= 0.01) {
+            /* 平台可能锁了倍速。不去写 playbackRate 硬改——那等于绕过它自己的控件 */
+            this.log.note(`倍速没能切到 ${target.rate}x（当前 ${after ? after.rate : '未知'}x），按原速播`);
+            return after ? after.rate : null;
+        }
+        this.log.say(`倍速切到 ${target.rate}x（菜单里最高的一档）`);
+        return target.rate;
+    }
+
     async startPlayback() {
         await this.ensureMuted();
         const atEnd = (state) => state && (state.ended || (state.duration > 0 && state.currentTime >= state.duration - 0.5));
@@ -456,6 +521,9 @@ export class LearningRunner {
             this.stop('起播失败');
             return 'stopped';
         }
+        /* 倍速要等起播之后再调：起播前 .status-box 那层遮罩盖住整个播放器
+         * (真实页面实测它和播放区一样大)，控制栏上的按钮点不到。 */
+        await this.applyPlaybackRate();
         this.log.say(`开始播放（${formatTime(first ? first.currentTime : 0)} / ${formatTime(first ? first.duration : 0)}）`);
         return this.watchUntilEnd();
     }

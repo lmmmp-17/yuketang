@@ -16,6 +16,9 @@ export const defaults = {
 
     /* 学习 */
     mute: true,                         /* 起播前静音, 一点声音都不出; --no-mute 关掉 */
+    /* 'max' = 切到播放器倍速菜单里最高的一档(实测提供到 2x)。给数字则取不超过它的
+     * 最高档; 给 1 就完全不碰倍速。只会用菜单里列出来的档位——那才是平台允许的。 */
+    playbackRate: 'max',
     articles: true,                     /* 图文也打开阅读; --no-articles 只看视频 */
     allowScriptedPlay: true,            /* 真实点击起播失败时才退回 video.play() */
     resumeWhileHidden: true,
@@ -134,6 +137,8 @@ export const helpText = `
 行为
   --max-items <n>         学完 n 项就停，默认不限
   --no-articles           只看视频，跳过图文
+  --playback-rate <倍速>  默认 max，切到播放器倍速菜单里最高的一档；
+                          给数字则取不超过它的最高档，给 1 就完全不碰倍速
   --no-mute               起播时不静音（默认静音，不会外放）
   --no-idle-activity      关掉播放期间的指针微动
   --no-resume-while-hidden  页面在后台时不去动播放状态
