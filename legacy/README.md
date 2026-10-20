@@ -1,6 +1,6 @@
 # 请求版（上游原来的 main.py）
 
-> **这是上游原来的版本，留作参考。推荐用 [Playwright 版](../README.md#快速开始playwright-版)。**
+> **这是上游原来的版本，留作参考。推荐用 [Playwright 版](../README.md#一初级使用教程)。**
 >
 > 这个版本不打开页面、不播放视频，而是直接往接口发自己拼出来的心跳和已读请求。它针对的是旧版视频页；现在的课程用的是新版「学习空间」（`/ai-workspace/lms-graph/`）。它发出的请求和真实播放器的对不上，差别见 [`playwright/README.md`](../playwright/README.md#为什么不在-mainpy-上改)。
 >
