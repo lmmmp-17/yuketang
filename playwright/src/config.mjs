@@ -7,7 +7,7 @@ import { BROWSER_CHOICES } from './platform.mjs';
 
 export const defaults = {
     mode: 'connect',                    /* connect | launch */
-    cdpPort: 9222,
+    cdpPort: 9223,                      /* 学习通的专用浏览器用 9222，错开才能两个一起跑 */
     profileDir: '.chrome-profile',      /* 仅 launch 模式使用 */
     url: '',
     logLevel: 'quiet',                  /* silent | quiet | normal | verbose */
@@ -138,7 +138,7 @@ export const helpText = `
   （独立 profile、静音），在里面登录、点开课程里的任意一个视频，脚本就会开始。
 
 浏览器
-  --cdp-port <端口>       调试端口，默认 9222
+  --cdp-port <端口>       调试端口，默认 9223（和学习通的 9222 错开）
   --browser <浏览器>      auto | chrome | edge，默认 auto：有 Chrome 用 Chrome，没有用 Edge
   --browser-path <路径>   浏览器可执行文件，默认自动找（旧名 --chrome-path 也认）
   --browser-profile <目录>

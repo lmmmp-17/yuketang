@@ -82,6 +82,7 @@
 - 浏览器装在非默认位置时，用 `--browser-path <可执行文件的完整路径>` 指定。旧参数名 `--chrome-path` 也认。
 - Chrome 和 Edge 的专用目录是分开的（用户目录下的 `yuketang-chrome` / `yuketang-edge`），换了浏览器要重新登录一次。想换目录用 `--browser-profile <目录>`。
 - 报 `…上开着的是 Chrome，不是你选的 Edge`：之前用另一种浏览器跑过，那个专用窗口还开着。关掉它，或者加 `--cdp-port 9333` 换个端口。
+- 调试端口默认是 9223，特意和学习通工具的 9222 错开，两个工具可以同时跑。
 
 ### 自己启动浏览器
 
@@ -89,19 +90,19 @@
 
 ```bash
 # Linux
-google-chrome --remote-debugging-port=9222 --user-data-dir="$HOME/yuketang-chrome" --disable-backgrounding-occluded-windows --mute-audio &
+google-chrome --remote-debugging-port=9223 --user-data-dir="$HOME/yuketang-chrome" --disable-backgrounding-occluded-windows --mute-audio &
 
 # macOS
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --remote-debugging-port=9222 --user-data-dir="$HOME/yuketang-chrome" --disable-backgrounding-occluded-windows --mute-audio &
+  --remote-debugging-port=9223 --user-data-dir="$HOME/yuketang-chrome" --disable-backgrounding-occluded-windows --mute-audio &
 ```
 
 ```bat
 :: Windows（cmd）
-"%ProgramFiles%\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --user-data-dir="%USERPROFILE%\yuketang-chrome" --disable-backgrounding-occluded-windows --mute-audio
+"%ProgramFiles%\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9223 --user-data-dir="%USERPROFILE%\yuketang-chrome" --disable-backgrounding-occluded-windows --mute-audio
 
 :: Windows 上用 Edge
-"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=9222 --user-data-dir="%USERPROFILE%\yuketang-edge" --disable-backgrounding-occluded-windows --disable-features=msImplicitSignin,msForceBrowserSignIn --disable-sync --mute-audio
+"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=9223 --user-data-dir="%USERPROFILE%\yuketang-edge" --disable-backgrounding-occluded-windows --disable-features=msImplicitSignin,msForceBrowserSignIn --disable-sync --mute-audio
 ```
 
 Linux / macOS 上用 Edge 的话，把命令换成 `microsoft-edge` 或 `"/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"`，目录换成 `yuketang-edge`，同样加上 `--disable-features=msImplicitSignin,msForceBrowserSignIn --disable-sync`。

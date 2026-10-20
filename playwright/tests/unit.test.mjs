@@ -250,3 +250,7 @@ test('第一次运行自动安装依赖；装过就不再装；失败时给出�
     assert.equal(ensureInstalled(silent, { run: ok }), false);
     assert.throws(() => ensureInstalled(silent, { dir: '/nonexistent-dir', run: () => ({ status: 1 }) }), /npmmirror/);
 });
+
+test('默认调试端口和学习通（9222）、智慧树连接模式（9224）错开，三个工具能同时跑', () => {
+    assert.equal(defaults.cdpPort, 9223);
+});
