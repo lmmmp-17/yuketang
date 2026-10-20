@@ -7,8 +7,8 @@ import { parseArgs, defaults } from '../src/config.mjs';
 import { isAllowedUrl } from '../src/selectors.mjs';
 import { LearningRunner, keyEntries, pickNext } from '../src/learning.mjs';
 import { createLogger } from '../src/logger.mjs';
-import { chromeLaunchHint, findChrome, chromeCandidates, dedicatedChromeArgs } from '../src/platform.mjs';
-import { launchOptions, launchDedicatedChrome, pickCoursePage } from '../src/browser.mjs';
+import { launchHint, findBrowser, browserCandidates, dedicatedArgs, sideProfileDir } from '../src/platform.mjs';
+import { launchOptions, launchDedicatedBrowser, pickCoursePage, openBrowser } from '../src/browser.mjs';
 import { ensureInstalled } from '../src/setup.mjs';
 import { createServer } from 'node:http';
 
@@ -67,9 +67,11 @@ test('只接受 yuketang.cn 的地址', () => {
 });
 
 test('启动提示和 launch 模式都在浏览器这一层静音', () => {
-    assert.match(chromeLaunchHint(9222), /--mute-audio/);
-    assert.match(chromeLaunchHint(9222), /yuketang-chrome/);
-    assert.match(chromeLaunchHint(9222), /--disable-backgrounding-occluded-windows/, 'Windows 上窗口被盖住会变 hidden，手动命令也得带');
+    assert.match(launchHint(9222), /--mute-audio/);
+    assert.match(launchHint(9222), /yuketang-chrome/);
+    assert.match(launchHint(9222), /--disable-backgrounding-occluded-windows/, 'Windows 上窗口被盖住会变 hidden，手动命令也得带');
+    assert.match(launchHint(9222, 'edge'), /yuketang-edge/, 'Edge 用自己的 profile 目录');
+    assert.equal(launchOptions({ kind: 'edge' }).channel, 'msedge');
     assert.ok(launchOptions().args.includes('--mute-audio'));
     assert.equal(launchOptions({ mute: false }).args.includes('--mute-audio'), false);
     assert.ok(launchOptions().ignoreDefaultArgs.includes('--enable-automation'));
@@ -160,16 +162,46 @@ test('等待时长的离散度贴近真人实测值；指针起点是 (0,0)', ()
     assert.deepEqual([pointer.state.x, pointer.state.y], [0, 0]);
 });
 
-test('找 Chrome：Windows / macOS 看固定位置，Linux 在 PATH 里找，--chrome-path 优先', () => {
-    const win = chromeCandidates('win32', { PROGRAMFILES: 'C:\\Program Files', LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' });
+test('找浏览器：Windows / macOS 看固定位置，Linux 在 PATH 里找，--browser-path 优先', () => {
+    const win = browserCandidates('chrome', 'win32', { PROGRAMFILES: 'C:\\Program Files', LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' });
     assert.equal(win[0], 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
-    const linux = findChrome({ platform: 'linux', env: { PATH: '/nope:/opt/bin' }, exists: (p) => p === '/opt/bin/chromium' });
-    assert.equal(linux, '/opt/bin/chromium');
-    assert.equal(findChrome({ configured: '/missing', exists: () => false }), null);
+    const linux = findBrowser({ platform: 'linux', env: { PATH: '/nope:/opt/bin' }, exists: (p) => p === '/opt/bin/chromium' });
+    assert.deepEqual(linux, { kind: 'chrome', exe: '/opt/bin/chromium' });
+    assert.equal(findBrowser({ configured: '/missing', exists: () => false }), null);
 });
 
-test('自动启动专用 Chrome：参数和手动命令同一组、静音、独立进程', async () => {
-    const args = dedicatedChromeArgs({ port: 9222, profileDir: '/home/u/yuketang-chrome', url: 'https://changjiang.yuketang.cn/' });
+test('Edge：没装 Chrome 时 auto 用 Edge；明确选了哪个就只找哪个；profile 分开', () => {
+    const env = { PROGRAMFILES: 'C:\\Program Files', 'PROGRAMFILES(X86)': 'C:\\Program Files (x86)' };
+    const edgeExe = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+    const onlyEdge = (p) => p === edgeExe;
+    assert.deepEqual(findBrowser({ platform: 'win32', env, exists: onlyEdge }), { kind: 'edge', exe: edgeExe });
+    assert.equal(findBrowser({ browser: 'chrome', platform: 'win32', env, exists: onlyEdge }), null, '选了 Chrome 就不悄悄换成 Edge');
+    assert.equal(findBrowser({ platform: 'win32', env, exists: () => true }).kind, 'chrome', 'auto 两个都有时用 Chrome');
+    assert.match(sideProfileDir('chrome'), /yuketang-chrome$/, 'Chrome 沿用原来的目录，已经登录过的不用重登');
+    assert.match(sideProfileDir('edge'), /yuketang-edge$/);
+    assert.throws(() => parseArgs(['--browser', 'firefox']), /--browser 只能是/);
+    assert.equal(parseArgs(['--browser', 'Edge']).config.browser, 'edge');
+    assert.equal(parseArgs(['--chrome-path', '/x']).config.browserPath, '/x', '旧参数名照旧能用');
+});
+
+test('端口上开着另一种浏览器时不悄悄接管，说清楚怎么办', async () => {
+    const server = createServer((req, res) => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ Browser: 'Edg/141.0.3537.71', 'User-Agent': 'Mozilla/5.0 Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0' }));
+    });
+    await new Promise((done) => server.listen(0, '127.0.0.1', done));
+    try {
+        await assert.rejects(
+            openBrowser({ ...defaults, cdpPort: server.address().port, browser: 'chrome' }, silent),
+            /开着的是 Edge，不是你选的 Chrome.*--cdp-port/s,
+        );
+    } finally {
+        server.close();
+    }
+});
+
+test('自动启动专用浏览器：参数和手动命令同一组、静音、独立进程', async () => {
+    const args = dedicatedArgs({ port: 9222, profileDir: '/home/u/yuketang-chrome', url: 'https://changjiang.yuketang.cn/' });
     assert.ok(args.includes('--mute-audio'));
     assert.ok(args.includes('--disable-backgrounding-occluded-windows'), 'Windows 上窗口被盖住会变 hidden，视频直接停');
     assert.equal(args.some((a) => /automation|headless|webdriver/i.test(a)), false);
@@ -178,8 +210,8 @@ test('自动启动专用 Chrome：参数和手动命令同一组、静音、独�
     await new Promise((done) => server.listen(0, '127.0.0.1', done));
     let call = null;
     try {
-        await launchDedicatedChrome(
-            { ...defaults, cdpPort: server.address().port, chromePath: process.execPath, chromeProfile: '/tmp/p' },
+        await launchDedicatedBrowser(
+            { ...defaults, cdpPort: server.address().port, browserPath: process.execPath, browserProfile: '/tmp/p' },
             silent,
             { spawnProcess(exe, a, options) { call = { a, options }; return { pid: 1, on() {}, unref() {} }; } },
         );
