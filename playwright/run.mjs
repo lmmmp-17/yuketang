@@ -74,7 +74,7 @@ async function main() {
         }
 
         if (focus.applied.length > 0) {
-            log.say('窗口可以放到后面去，失焦不会再打断播放。别在同一个窗口里把学习页切成后台标签。');
+            log.say('窗口可以放到后面去，失焦不会再打断播放。别最小化，也别在同一个窗口里把学习页切成后台标签。');
         }
 
         runner = new LearningRunner({ page, pointer, config, log });

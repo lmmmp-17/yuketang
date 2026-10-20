@@ -69,6 +69,7 @@ test('只接受 yuketang.cn 的地址', () => {
 test('启动提示和 launch 模式都在浏览器这一层静音', () => {
     assert.match(chromeLaunchHint(9222), /--mute-audio/);
     assert.match(chromeLaunchHint(9222), /yuketang-chrome/);
+    assert.match(chromeLaunchHint(9222), /--disable-backgrounding-occluded-windows/, 'Windows 上窗口被盖住会变 hidden，手动命令也得带');
     assert.ok(launchOptions().args.includes('--mute-audio'));
     assert.equal(launchOptions({ mute: false }).args.includes('--mute-audio'), false);
     assert.ok(launchOptions().ignoreDefaultArgs.includes('--enable-automation'));
@@ -170,6 +171,7 @@ test('找 Chrome：Windows / macOS 看固定位置，Linux 在 PATH 里找，--c
 test('自动启动专用 Chrome：参数和手动命令同一组、静音、独立进程', async () => {
     const args = dedicatedChromeArgs({ port: 9222, profileDir: '/home/u/yuketang-chrome', url: 'https://changjiang.yuketang.cn/' });
     assert.ok(args.includes('--mute-audio'));
+    assert.ok(args.includes('--disable-backgrounding-occluded-windows'), 'Windows 上窗口被盖住会变 hidden，视频直接停');
     assert.equal(args.some((a) => /automation|headless|webdriver/i.test(a)), false);
 
     const server = createServer((req, res) => { res.writeHead(200); res.end('{}'); });
