@@ -71,6 +71,11 @@ test('启动提示和 launch 模式都在浏览器这一层静音', () => {
     assert.match(launchHint(9222), /yuketang-chrome/);
     assert.match(launchHint(9222), /--disable-backgrounding-occluded-windows/, 'Windows 上窗口被盖住会变 hidden，手动命令也得带');
     assert.match(launchHint(9222, 'edge'), /yuketang-edge/, 'Edge 用自己的 profile 目录');
+    assert.match(launchHint(9222, 'edge'), /--disable-features=msImplicitSignin\S* --disable-sync/, '手动命令也要关掉自动登录和同步');
+    const edgeArgs = dedicatedArgs({ port: 1, profileDir: '/p', kind: 'edge' });
+    assert.ok(edgeArgs.includes('--disable-sync'));
+    assert.equal(edgeArgs.filter((x) => x.startsWith('--disable-features=')).length, 1);
+    assert.equal(dedicatedArgs({ port: 1, profileDir: '/p' }).some((x) => /disable-sync|disable-features/.test(x)), false, 'Edge 独有的开关不加给 Chrome');
     assert.equal(launchOptions({ kind: 'edge' }).channel, 'msedge');
     assert.ok(launchOptions().args.includes('--mute-audio'));
     assert.equal(launchOptions({ mute: false }).args.includes('--mute-audio'), false);
